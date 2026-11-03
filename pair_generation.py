@@ -17,10 +17,15 @@ test_data = fetch_20newsgroups(
 # Normalize the text by converting to lowercase and removing non-alphanumeric characters
 def normalize_text(text):
     text = text.lower()  # Convert to lowercase
-    text = re.sub(r"^http\S+|www\.\s+", " ", text)  # Remove URLs
+    text = re.sub(r"https?://|www\.)\S+", " ", text)  # Remove URLs
     text = re.sub(r"[^a-z0-9\s]", " ", text)        # Remove non-alphanumeric characters
     text = re.sub(r"\s+", " ", text).strip()        # Replace multiple spaces with a single space
     return text
+
+# Indicies of documents with at least one vocabularity word.
+def non_empty_docs(x):
+    return np.flatnonzero(np.asarray(x.sum(axis=1)).ravel()>0)
+
 
 X_train_texts = [normalize_text(text) for text in train_data.data]
 X_test_texts = [normalize_text(text) for text in test_data.data]
