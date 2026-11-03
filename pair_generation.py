@@ -2,6 +2,7 @@ from sklearn.datasets import fetch_20newsgroups
 import re
 from sklearn.feature_extraction.text import CountVectorizer
 import numpy as np
+import scipy.sparse as sp
 
 # Normalize the text by converting to lowercase and removing non-alphanumeric characters
 def normalize_text(text):
@@ -104,9 +105,22 @@ def generate_pairs(labels, n_pairs=5000, seed=42):
     return pairs, labels_list
 
 
+valid_idx=non_empty_docs(X_train_docs)
+# Group indices by category 
+category_indicies = {}
+for idx in valid_idx:
+    label = lables[idx]
+    if label not in category_indicies:
+        category_indicies[label] = []
+    category_indicies[label].append(idx)
 
+
+
+
+
+
+# Each row = [words of document A | words of document B]
 def pair_to_vectors(pair, X):
+    return sp.hstack([X[pair[0]], X[pair[1]]], format="csr")
 
-    '''
-    TESTING FUNCTION FOR PAIR GENERATION
-    '''
+# Testing functions
