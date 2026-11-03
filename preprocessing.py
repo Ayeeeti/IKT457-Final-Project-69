@@ -96,13 +96,13 @@ def generate_pairs(labels, n_pairs=5000, seed=42):
                 pairs.append(pair)
                 labels_list.append(0)  # Negative pair
 
-        # Shuffle the pairs and labels together
-        permutation = rng.permutation(len(pairs))
+            # Shuffle the pairs and labels together
+            permutation = rng.permutation(len(pairs))
 
-        pairs = np.array(pairs)[permutation]
-        labels_list = np.array(labels_list)[permutation]
+            pairs = np.array(pairs)[permutation]
+            labels_list = np.array(labels_list)[permutation]
 
-        return pairs, labels_list
+            return pairs, labels_list
 
 
 
