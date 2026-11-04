@@ -194,12 +194,6 @@ X_test_pairs = sp.vstack([
     for pair in test_pairs
     ])
 
-
-
-
-
-
-
 # Check that labels and feature matrix align
 print("Training pair feature matrix:", X_train_pairs.shape)
 print("Training pair label shape:", y_train_pairs.shape)
