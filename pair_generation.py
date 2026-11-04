@@ -43,16 +43,24 @@ test_data = fetch_20newsgroups(
 X_train_texts = [normalize_text(text) for text in train_data.data]
 X_test_texts = [normalize_text(text) for text in test_data.data]
 
+# Split documents before creating pairs or fitting the vocabulary.
+train_document_indices, val_document_indices = train_test_split(
+    np.arange(len(X_train_texts)),
+    test_size=0.2,
+    random_state=42,
+    stratify=train_data.target,
+)
 
+X_fit_texts = [X_train_texts[i] for i in train_document_indices]
+X_val_texts = [X_train_texts[i] for i in val_document_indices]
 
-# Fit.transform on training data and transform on testing data ensures that the test does not influence the learning vocab
-X_train_docs = vectorizer.fit_transform(X_train_texts)
+# Fit the vocabulary only on training documents.
+X_train_docs = vectorizer.fit_transform(X_fit_texts)
+X_val_docs = vectorizer.transform(X_val_texts)
 X_test_docs = vectorizer.transform(X_test_texts)
 
-
-
-
 print("Training binary document matrix:", X_train_docs.shape)
+print("Validation binary document matrix:", X_val_docs.shape)
 print("Test binary document matrix:", X_test_docs.shape)
 
 
@@ -137,45 +145,47 @@ def generate_pairs(labels, n_pairs=5000, seed=42, valid_indices=None):
     return pairs, labels_list
 
 
-valid_idx = non_empty_docs(X_train_docs)
-train_pairs, pair_labels = generate_pairs(
-    train_data.target,
+train_valid_idx = non_empty_docs(X_train_docs)
+val_valid_idx = non_empty_docs(X_val_docs)
+test_valid_idx = non_empty_docs(X_test_docs)
+
+train_labels = train_data.target[train_document_indices]
+val_labels = train_data.target[val_document_indices]
+
+train_pairs, y_train_pairs = generate_pairs(
+    train_labels,
     n_pairs=5000,
     seed=42,
-    valid_indices=valid_idx
+    valid_indices=train_valid_idx,
 )
-
 
 # Each row = [words of document A | words of document B]
 def pair_to_vectors(pair, X):
     return sp.hstack([X[pair[0]], X[pair[1]]], format="csr")
 
 # Convert each generated pair into a feature vector
-train_pair_vectors = sp.vstack([
-    pair_to_vectors(pair, X_train_docs) 
+X_train_pairs = sp.vstack([
+    pair_to_vectors(pair, X_train_docs)
     for pair in train_pairs
-    ])
+])
 
-# Split generated pairs into training and validation sets
-train_indices, val_indices = train_test_split(
-    np.arange(len(train_pairs)),
-    test_size=0.2,
-    random_state=42,
-    stratify=pair_labels
+val_pairs, y_val_pairs = generate_pairs(
+    val_labels,
+    n_pairs=1000,
+    seed=43,
+    valid_indices=val_valid_idx,
 )
 
-X_train_pairs = train_pair_vectors[train_indices]
-y_train_pairs = pair_labels[train_indices]
-X_val_pairs = train_pair_vectors[val_indices]
-y_val_pairs = pair_labels[val_indices]
+X_val_pairs = sp.vstack([
+    pair_to_vectors(pair, X_val_docs)
+    for pair in val_pairs
+])
 
 # Generate test pairs separately from the test documents and their targets.
-test_valid_idx = non_empty_docs(X_test_docs)
-
 test_pairs, test_pair_labels = generate_pairs(
     test_data.target,
     n_pairs=1000,
-    seed=43,
+    seed=44,
     valid_indices=test_valid_idx
 )
 
@@ -185,13 +195,21 @@ X_test_pairs = sp.vstack([
     ])
 
 
+
+
+
+
+
 # Check that labels and feature matrix align
-print("Training pair feature matrix:", train_pair_vectors.shape)
-print("Training pair label shape:", pair_labels.shape)
+print("Training pair feature matrix:", X_train_pairs.shape)
+print("Training pair label shape:", y_train_pairs.shape)
+print("Validation pair feature matrix:", X_val_pairs.shape)
+print("Validation pair label shape:", y_val_pairs.shape)
 print("Test pair feature matrix:", X_test_pairs.shape)
 print("Test pair label shape:", test_pair_labels.shape)
 
-print("Training pair balance [negative, positive]:", np.bincount(pair_labels))
+print("Training pair balance [negative, positive]:", np.bincount(y_train_pairs))
+print("Validation pair balance [negative, positive]:", np.bincount(y_val_pairs))
 print("Test pair balance [negative, positive]:", np.bincount(test_pair_labels))
 print("Number of unique test pairs:", len(set(map(tuple, test_pairs))))
 print("Total number of generated test pairs:", len(test_pairs))
