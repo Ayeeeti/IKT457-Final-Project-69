@@ -195,3 +195,26 @@ print("Training pair balance [negative, positive]:", np.bincount(pair_labels))
 print("Test pair balance [negative, positive]:", np.bincount(test_pair_labels))
 print("Number of unique test pairs:", len(set(map(tuple, test_pairs))))
 print("Total number of generated test pairs:", len(test_pairs))
+
+
+'''
+Preprocessing stegene som er blitt gjort:
+- Lowercasing text
+- Removing URLs, punctuation, and extra whitespace, headers, footers, and quotes
+- Removing non-alphanumeric characters
+- Converting text into binary features using CountVectorizer
+- Filtering documents with no vocabulary words
+- Concentrating each pair's two document vectors into one 2k-feature vector
+- Building a 1k-wordk training vocabulary (CountVectorizer)
+'''
+
+'''
+Feature representation:
+- Each document is represented as a binary vector of length 1000
+- A document pair is represented as a concatenation of two document vectors,
+resulting in a feature vector of length 2000
+- Vocab is fitted only on the training data to avoid data leakage,
+and the same training vocab and feature positions are then used to
+transform the test documents
+
+'''
