@@ -1,8 +1,10 @@
-from sklearn.datasets import fetch_20newsgroups
 import re
-from sklearn.feature_extraction.text import CountVectorizer
+
 import numpy as np
 import scipy.sparse as sp
+from sklearn.datasets import fetch_20newsgroups
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
 
 # Normalize the text by converting to lowercase and removing non-alphanumeric characters
 def normalize_text(text):
@@ -12,10 +14,9 @@ def normalize_text(text):
     text = re.sub(r"\s+", " ", text).strip()        # Replace multiple spaces with a single space
     return text
 
-# Indicies of documents with at least 
-# one vocabularity word.
+# Indices of documents with at least one vocabulary word.
 def non_empty_docs(x):
-    return np.flatnonzero(np.asarray(x.sum(axis=1)).ravel()>0)
+    return np.flatnonzero(np.asarray(x.sum(axis=1)).ravel() > 0)
 
 
 # Convert text into binary features
@@ -51,8 +52,8 @@ X_test_docs = vectorizer.transform(X_test_texts)
 
 
 
-print(X_train_docs.shape)
-print(X_test_docs.shape)
+print("Training binary document matrix:", X_train_docs.shape)
+print("Test binary document matrix:", X_test_docs.shape)
 
 
 # Generate balanced document pairs
@@ -60,8 +61,21 @@ print(X_test_docs.shape)
 # A positive pair consists of two documents from the same category, 
 # while a negative pair consists of two documents from different categories
 
-def generate_pairs(labels, n_pairs=5000, seed=42):
+def generate_pairs(labels, n_pairs=5000, seed=42, valid_indices=None):
     rng = np.random.default_rng(seed)
+    labels = np.asarray(labels)
+
+    if valid_indices is None:
+        valid_indices = np.arange(len(labels))
+    else:
+        valid_indices = np.asarray(valid_indices, dtype=int)
+
+    if n_pairs <= 0 or n_pairs % 2 != 0:
+        raise ValueError("n_pairs must be a positive, even number.")
+    if len(labels) == 0:
+        raise ValueError("labels must not be empty.")
+    if np.any(valid_indices < 0) or np.any(valid_indices >= len(labels)):
+        raise ValueError("valid_indices contains an out-of-range document index.")
 
     pairs = []
     labels_list = []
@@ -69,22 +83,37 @@ def generate_pairs(labels, n_pairs=5000, seed=42):
 
     # Group document indices by category
     category_indices = {}
-    for idx, label in enumerate(labels):
+    for idx in valid_indices:
+        label = labels[idx]
         if label not in category_indices:
             category_indices[label] = []
         category_indices[label].append(idx)
 
     categories = list(category_indices.keys())
+    positive_categories = [
+        category for category in categories
+        if len(category_indices[category]) >= 2
+    ]
+
+    if len(positive_categories) == 0:
+        raise ValueError("At least one category must contain two valid documents.")
+    if len(categories) < 2:
+        raise ValueError("At least two categories are required to generate negative pairs.")
 
     # Generate positive pairs
+    attempts = 0
+    max_attempts = max(1000, n_pairs * 1000)
     while len(pairs) < n_pairs // 2:
-        category = rng.choice(categories)
+        category = rng.choice(positive_categories)
         indx1, indx2 = rng.choice(category_indices[category], size=2, replace=False)
         pair = tuple(sorted((int(indx1), int(indx2))))
         if pair not in seen_pairs:
             seen_pairs.add(pair)
             pairs.append(pair)
             labels_list.append(1)
+        attempts += 1
+        if attempts >= max_attempts:
+            raise RuntimeError("Could not generate enough unique positive pairs.")
 
 
     # Generate negative pairs
@@ -97,6 +126,9 @@ def generate_pairs(labels, n_pairs=5000, seed=42):
             seen_pairs.add(pair)
             pairs.append(pair)
             labels_list.append(0)
+        attempts += 1
+        if attempts >= max_attempts:
+            raise RuntimeError("Could not generate enough unique negative pairs.")
 
     # Shuffle and return 
     permutation = rng.permutation(len(pairs))
@@ -105,22 +137,61 @@ def generate_pairs(labels, n_pairs=5000, seed=42):
     return pairs, labels_list
 
 
-valid_idx=non_empty_docs(X_train_docs)
-# Group indices by category 
-category_indicies = {}
-for idx in valid_idx:
-    label = lables[idx]
-    if label not in category_indicies:
-        category_indicies[label] = []
-    category_indicies[label].append(idx)
-
-
-
-
+valid_idx = non_empty_docs(X_train_docs)
+train_pairs, pair_labels = generate_pairs(
+    train_data.target,
+    n_pairs=5000,
+    seed=42,
+    valid_indices=valid_idx
+)
 
 
 # Each row = [words of document A | words of document B]
 def pair_to_vectors(pair, X):
     return sp.hstack([X[pair[0]], X[pair[1]]], format="csr")
 
-# Testing functions
+# Convert each generated pair into a feature vector
+train_pair_vectors = sp.vstack([
+    pair_to_vectors(pair, X_train_docs) 
+    for pair in train_pairs
+    ])
+
+# Split generated pairs into training and validation sets
+train_indices, val_indices = train_test_split(
+    np.arange(len(train_pairs)),
+    test_size=0.2,
+    random_state=42,
+    stratify=pair_labels
+)
+
+X_train_pairs = train_pair_vectors[train_indices]
+y_train_pairs = pair_labels[train_indices]
+X_val_pairs = train_pair_vectors[val_indices]
+y_val_pairs = pair_labels[val_indices]
+
+# Generate test pairs separately from the test documents and their targets.
+test_valid_idx = non_empty_docs(X_test_docs)
+
+test_pairs, test_pair_labels = generate_pairs(
+    test_data.target,
+    n_pairs=1000,
+    seed=43,
+    valid_indices=test_valid_idx
+)
+
+X_test_pairs = sp.vstack([
+    pair_to_vectors(pair, X_test_docs)
+    for pair in test_pairs
+    ])
+
+
+# Check that labels and feature matrix align
+print("Training pair feature matrix:", train_pair_vectors.shape)
+print("Training pair label shape:", pair_labels.shape)
+print("Test pair feature matrix:", X_test_pairs.shape)
+print("Test pair label shape:", test_pair_labels.shape)
+
+print("Training pair balance [negative, positive]:", np.bincount(pair_labels))
+print("Test pair balance [negative, positive]:", np.bincount(test_pair_labels))
+print("Number of unique test pairs:", len(set(map(tuple, test_pairs))))
+print("Total number of generated test pairs:", len(test_pairs))
