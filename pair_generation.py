@@ -51,6 +51,9 @@ train_document_indices, val_document_indices = train_test_split(
     stratify=train_data.target,
 )
 
+# The document splits must not share source-document indices
+assert len(set(train_document_indices).intersection(val_document_indices)) == 0
+
 X_fit_texts = [X_train_texts[i] for i in train_document_indices]
 X_val_texts = [X_train_texts[i] for i in val_document_indices]
 
@@ -65,7 +68,7 @@ print("Test binary document matrix:", X_test_docs.shape)
 
 
 # Generate balanced document pairs
-# We want to create a balanced dataset with 50% positive and 50% negative pairs
+# Want to create a balanced dataset with 50% positive and 50% negative pairs
 # A positive pair consists of two documents from the same category, 
 # while a negative pair consists of two documents from different categories
 
@@ -193,6 +196,23 @@ X_test_pairs = sp.vstack([
     pair_to_vectors(pair, X_test_docs)
     for pair in test_pairs
     ])
+
+# Convert pair-local document indices back to indices in the original datasets
+# This lets us verify that every document used by the pairs belongs to one split only
+train_pair_documents = set(
+    train_document_indices[np.asarray(train_pairs, dtype=int).ravel()]
+)
+val_pair_documents = set(
+    val_document_indices[np.asarray(val_pairs, dtype=int).ravel()]
+)
+test_pair_documents = set(np.asarray(test_pairs, dtype=int).ravel())
+
+assert train_pair_documents.isdisjoint(val_pair_documents)
+
+print("Training documents used in pairs:", len(train_pair_documents))
+print("Validation documents used in pairs:", len(val_pair_documents))
+print("Test documents used in pairs:", len(test_pair_documents))
+
 
 # Check that labels and feature matrix align
 print("Training pair feature matrix:", X_train_pairs.shape)
