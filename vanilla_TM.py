@@ -1,4 +1,6 @@
 import numpy as np
+import argparse
+from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
 
 
 from pair_generation import (
@@ -79,3 +81,53 @@ class VanillaTM:
                count=len(x)
          )
 
+
+def main():
+    parser = argparse.ArgumentParser(description="Vanilla Tsetlin Machine at s=1.0")
+    parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs")
+    parser.add_argument("--clauses", type=int, default=100, help="Number of clauses")
+    parser.add_argument("--threshold", type=int, default=15, help="Voting threshold")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    args = parser.parse_args()
+    if args.epochs < 1:
+        parser.error("Number of epochs must be positive.")
+
+
+    from pair_generation import (
+    X_train_pairs,
+    y_train_pairs,
+    X_val_pairs,
+    y_val_pairs,
+    X_test_pairs,
+    test_pair_labels,
+    vectorizer
+    )
+
+    X_train = X_train_pairs.toarray().astype(np.uint8)
+    X_val = X_val_pairs.toarray().astype(np.uint8)
+    X_test = X_test_pairs.toarray().astype(np.uint8)
+    model = VanillaTM(
+        X_train.shape[1], args.clauses, args.thershold, seed=args.seed)
+    best_f1 = -1
+    print(f"s = 1.0, clauses = {args.clauses}, threshold = {args.threshold}, seed={args.seed}")
+    for epoch in range (1, args.epochs + 1):
+        model.fit_epoch(X_train, y_train_pairs)
+        predictions = model.predict(X_val)
+        score = f1_score(y_val_pairs, predictions, average="macro")
+        print(f"epoch {epoch}: Validation_macro_f1= {score:.4f}")
+
+        if score > best_f1:
+            best_f1 = score
+            best_epoch = epoch
+            best_automata = model.automata.copy()
+
+    model.automata = best_automata
+    predictions = model.predict(X_test_pairs.toarray().astype(np.uint8))
+    print(f"best_epoch={best_epoch}")
+    print(f"test_accuracy={accuracy_score(test_pair_labels, predictions):.4f}")
+    print(f"test_macro_f1={f1_score(test_pair_labels, predictions, average='macro'):.4f}")
+    print(confusion_matrix(test_pair_labels, predictions, labels=[0, 1]))
+
+
+if __name__ == "__main__":
+    main()
