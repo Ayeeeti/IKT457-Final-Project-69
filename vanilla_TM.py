@@ -12,8 +12,8 @@ class VanillaTM:
         if not 1 <= states <= np.iinfo(np.int16).max // 2:
             raise ValueError("states is outside the supported range.")
 
-        if not np.isfinite(s) or s <= 1:
-            raise ValueError("s must be finite and greater than 1.")
+        if not np.isfinite(s) or s < 1.0:
+            raise ValueError("s must be finite and at least 1.0.")
 
         self.inverse_s = 1 / s
         self.states = states
