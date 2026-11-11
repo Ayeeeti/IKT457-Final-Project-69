@@ -5,7 +5,7 @@ import argparse
 class VanillaTM:
     """Binary, unweighted Tsetlin Machine with flat conjunctions"""
 
-    def __init__(self, n_features, clauses=100, threshold=15, states=100, seed=42, s=21.1):
+    def __init__(self, n_features, clauses=100, threshold=15, states=100, seed=42, s=1.0):
         # Error checking
         if n_features < 1 or clauses < 2 or clauses % 2 or threshold < 1:
             raise ValueError("Use positive features and threshold, and an even clause count.")
