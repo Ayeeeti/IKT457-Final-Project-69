@@ -157,7 +157,7 @@ val_labels = train_data.target[val_document_indices]
 
 train_pairs, y_train_pairs = generate_pairs(
     train_labels,
-    n_pairs=5000,
+    n_pairs=20000,
     seed=42,
     valid_indices=train_valid_idx,
 )
