@@ -1,0 +1,2 @@
+-r requirements.txt
+PyHierarchicalTsetlinMachineCUDA>=0.3.3
