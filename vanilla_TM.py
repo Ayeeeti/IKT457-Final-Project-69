@@ -5,7 +5,7 @@ import argparse
 class VanillaTM:
     """Binary, unweighted Tsetlin Machine with flat conjunctions"""
 
-    def __init__(self, n_features, clauses=100, threshold=15, states=100, seed=42, s=1.0):
+    def __init__(self, n_features, clauses=200, threshold=5, states=100, seed=42, s=1.0):
         # Error checking
         if n_features < 1 or clauses < 2 or clauses % 2 or threshold < 1:
             raise ValueError("Use positive features and threshold, and an even clause count.")
@@ -103,7 +103,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs")
     parser.add_argument("--clauses", type=int, default=100, help="Number of clauses")
     parser.add_argument("--threshold", type=int, default=15, help="Voting threshold")
-    parser.add_argument("--s", type=float, default=21.1, help="Feedback specificity")
+    parser.add_argument("--s", type=float, default=1.0, help="Feedback specificity")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
     if args.epochs < 1:
