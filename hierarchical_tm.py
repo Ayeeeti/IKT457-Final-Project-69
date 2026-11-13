@@ -98,7 +98,7 @@ def main():
         s=args.s,
         number_of_state_bits=8,
         boost_true_positive_feedback=0,
-        append_negated=False,
+        append_negated=True,
         hierarchy_structure=hierarchy,
         seed=args.seed,
     )
