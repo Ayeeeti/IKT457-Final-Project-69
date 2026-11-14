@@ -31,12 +31,10 @@ vectorizer = CountVectorizer(
 # Remove headers, footers, and quotes from the training and testing datasets
 train_data = fetch_20newsgroups(
     subset="train",
-    remove=("headers", "footers", "quotes")
 )
 
 test_data = fetch_20newsgroups(
     subset="test",
-    remove=("headers", "footers", "quotes")
 )
 
 
@@ -157,7 +155,7 @@ val_labels = train_data.target[val_document_indices]
 
 train_pairs, y_train_pairs = generate_pairs(
     train_labels,
-    n_pairs=20000,
+    n_pairs=5000,
     seed=42,
     valid_indices=train_valid_idx,
 )
