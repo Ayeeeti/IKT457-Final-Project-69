@@ -13,6 +13,7 @@ from pair_generation import (
     y_val_pairs,
     X_test_pairs,
     test_pair_labels,
+    vectorizer,
 )
 
 
