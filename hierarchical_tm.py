@@ -13,6 +13,7 @@ from pair_generation import (
     y_val_pairs,
     X_test_pairs,
     test_pair_labels,
+    to_relational_features,
 )
 
 
@@ -24,7 +25,7 @@ def main():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=50,
+        default=100,
         help="Number of training epochs"
     )
 
@@ -45,7 +46,7 @@ def main():
     parser.add_argument(
         "--s",
         type=float,
-        default=21.1,
+        default=40.0,
         help="Feedback specificity"
     )
 
@@ -68,18 +69,23 @@ def main():
     if args.epochs < 1:
         parser.error("Number of epochs must be positive.")
 
-    # Reproducibility
     np.random.seed(args.seed)
 
-    # Convert sparse pair matrices to dense binary arrays
-    X_train = X_train_pairs.astype(np.uint32).toarray()
-    X_val = X_val_pairs.astype(np.uint32).toarray()
-    X_test = X_test_pairs.astype(np.uint32).toarray()
+    # Convert raw [Document A | Document B] pairs into
+    # relational [shared words | different words] features.
+    X_train_relational = to_relational_features(X_train_pairs)
+    X_val_relational = to_relational_features(X_val_pairs)
+    X_test_relational = to_relational_features(X_test_pairs)
+
+    X_train = X_train_relational.astype(np.uint32).toarray()
+    X_val = X_val_relational.astype(np.uint32).toarray()
+    X_test = X_test_relational.astype(np.uint32).toarray()
 
     y_train = y_train_pairs.astype(np.uint32)
     y_val = y_val_pairs.astype(np.uint32)
     y_test = test_pair_labels.astype(np.uint32)
 
+    print("Using relational features: [shared | different]")
     print("Training:", X_train.shape, y_train.shape)
     print("Validation:", X_val.shape, y_val.shape)
     print("Testing:", X_test.shape, y_test.shape)
@@ -98,7 +104,7 @@ def main():
         s=args.s,
         number_of_state_bits=8,
         boost_true_positive_feedback=0,
-        append_negated=True,
+        append_negated=False,
         hierarchy_structure=hierarchy,
         seed=args.seed,
     )
@@ -121,7 +127,6 @@ def main():
     best_state = None
 
     for epoch in range(1, args.epochs + 1):
-
         model.fit(X_train, y_train)
 
         val_predictions = model.predict(X_val)
@@ -143,13 +148,11 @@ def main():
             f"Validation_macro_f1={val_f1:.4f}"
         )
 
-        # Use macro F1 for model selection, like the Vanilla implementation
+        # Select the best model using validation macro F1.
         if val_f1 > best_f1:
             best_f1 = val_f1
             best_accuracy = val_accuracy
             best_epoch = epoch
-
-            # Save the best HTM state
             best_state = model.save()
 
     print()
@@ -157,11 +160,25 @@ def main():
     print(f"best_validation_accuracy={best_accuracy:.4f}")
     print(f"best_validation_macro_f1={best_f1:.4f}")
 
-    # Restore best validation model
+    # Restore the model state that achieved the best validation F1.
     if best_state is not None:
         model.load(best_state)
 
-    # Final evaluation on held-out test data
+    # Evaluate the selected model on the training set.
+    train_predictions = model.predict(X_train)
+
+    print()
+    print(
+        f"train_accuracy="
+        f"{accuracy_score(y_train, train_predictions):.4f}"
+    )
+
+    print(
+        f"train_macro_f1="
+        f"{f1_score(y_train, train_predictions, average='macro'):.4f}"
+    )
+
+    # Final evaluation on the held-out test set.
     test_predictions = model.predict(X_test)
 
     print()

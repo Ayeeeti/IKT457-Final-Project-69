@@ -27,8 +27,7 @@ vectorizer = CountVectorizer(
     min_df=5                # Ignore words appearing fewer than 5 training documents
     )
 
-
-# Remove headers, footers, and quotes from the training and testing datasets
+# Load the full training and testing documents
 train_data = fetch_20newsgroups(
     subset="train",
 )
@@ -155,7 +154,7 @@ val_labels = train_data.target[val_document_indices]
 
 train_pairs, y_train_pairs = generate_pairs(
     train_labels,
-    n_pairs=5000,
+    n_pairs=20000,
     seed=42,
     valid_indices=train_valid_idx,
 )
@@ -195,6 +194,26 @@ X_test_pairs = sp.vstack([
     for pair in test_pairs
     ])
 
+# Convert [Document A | Document B] into relational features:
+# [shared words | different words]
+def to_relational_features(X_pairs):
+    words_per_document = X_pairs.shape[1] // 2
+
+    A = X_pairs[:, :words_per_document].tocsr()
+    B = X_pairs[:, words_per_document:].tocsr()
+
+    # Words appearing in both documents
+    shared = A.multiply(B)
+
+    # XOR: words appearing in exactly one document
+    different = A + B - (2 * shared)
+    different.eliminate_zeros()
+
+    return sp.hstack(
+        [shared, different],
+        format="csr"
+    )
+
 # Convert pair-local document indices back to indices in the original datasets
 # This lets us verify that every document used by the pairs belongs to one split only
 train_pair_documents = set(
@@ -228,23 +247,31 @@ print("Total number of generated test pairs:", len(test_pairs))
 
 
 '''
-Preprocessing stegene som er blitt gjort:
+Preprocessing:
 - Lowercasing text
-- Removing URLs, punctuation, and extra whitespace, headers, footers, and quotes
+- Removing URLs, punctuation, and extra whitespace
 - Removing non-alphanumeric characters
+- Keeping the original headers, footers, and quoted text
 - Converting text into binary features using CountVectorizer
+- Using a 1000-word vocabulary
+- Removing English stop words
+- Using min_df=5
+- Fitting the vocabulary only on the training split
 - Filtering documents with no vocabulary words
-- Concentrating each pair's two document vectors into one 2k-feature vector
-- Building a 1k-wordk training vocabulary (CountVectorizer)
+- Generating balanced positive and negative document pairs
 '''
 
 '''
-Feature representation:
-- Each document is represented as a binary vector of length 1000
-- A document pair is represented as a concatenation of two document vectors,
-resulting in a feature vector of length 2000
-- Vocab is fitted only on the training data to avoid data leakage,
-and the same training vocab and feature positions are then used to
-transform the test documents
+Base feature representation:
+- Each document is represented by a binary vector of length 1000
+- A document pair is initially represented as:
+  [Document A | Document B]
+- This gives 2000 binary features
 
+For the Hierarchical Tsetlin Machine, these features are transformed into:
+[shared words | different words]
+
+where:
+- shared = Document A AND Document B
+- different = Document A XOR Document B
 '''
