@@ -13,7 +13,6 @@ from pair_generation import (
     y_val_pairs,
     X_test_pairs,
     test_pair_labels,
-    to_relational_features,
 )
 
 
@@ -73,14 +72,13 @@ def main():
 
     # Convert raw [Document A | Document B] pairs into
     # relational [shared words | different words] features.
-    X_train_relational = to_relational_features(X_train_pairs)
-    X_val_relational = to_relational_features(X_val_pairs)
-    X_test_relational = to_relational_features(X_test_pairs)
+    # X_train_relational = to_relational_features(X_train_pairs)
+    # X_val_relational = to_relational_features(X_val_pairs)
+    # X_test_relational = to_relational_features(X_test_pairs)
 
-    X_train = X_train_relational.astype(np.uint32).toarray()
-    X_val = X_val_relational.astype(np.uint32).toarray()
-    X_test = X_test_relational.astype(np.uint32).toarray()
-
+    X_train = X_train_pairs.astype(np.uint32).toarray()
+    X_val = X_val_pairs.astype(np.uint32).toarray()
+    X_test = X_test_pairs.astype(np.uint32).toarray()
     y_train = y_train_pairs.astype(np.uint32)
     y_val = y_val_pairs.astype(np.uint32)
     y_test = test_pair_labels.astype(np.uint32)
