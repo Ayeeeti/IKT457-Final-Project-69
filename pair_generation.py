@@ -27,16 +27,13 @@ vectorizer = CountVectorizer(
     min_df=5                # Ignore words appearing fewer than 5 training documents
     )
 
-
-# Remove headers, footers, and quotes from the training and testing datasets
+# Load the full training and testing documents
 train_data = fetch_20newsgroups(
     subset="train",
-    remove=("headers", "footers", "quotes")
 )
 
 test_data = fetch_20newsgroups(
     subset="test",
-    remove=("headers", "footers", "quotes")
 )
 
 
@@ -69,7 +66,7 @@ print("Test binary document matrix:", X_test_docs.shape)
 
 # Generate balanced document pairs
 # Want to create a balanced dataset with 50% positive and 50% negative pairs
-# A positive pair consists of two documents from the same category, 
+# A positive pair consists of two documents from the same category,
 # while a negative pair consists of two documents from different categories
 
 def generate_pairs(labels, n_pairs=20000, seed=42, valid_indices=None):
@@ -116,35 +113,56 @@ def generate_pairs(labels, n_pairs=20000, seed=42, valid_indices=None):
     max_attempts = max(1000, n_pairs * 1000)
     while len(pairs) < n_pairs // 2:
         category = rng.choice(positive_categories)
-        indx1, indx2 = rng.choice(category_indices[category], size=2, replace=False)
+        indx1, indx2 = rng.choice(
+            category_indices[category],
+            size=2,
+            replace=False
+        )
+
         pair = tuple(sorted((int(indx1), int(indx2))))
+
         if pair not in seen_pairs:
             seen_pairs.add(pair)
             pairs.append(pair)
             labels_list.append(1)
-        attempts += 1
-        if attempts >= max_attempts:
-            raise RuntimeError("Could not generate enough unique positive pairs.")
 
+        attempts += 1
+
+        if attempts >= max_attempts:
+            raise RuntimeError(
+                "Could not generate enough unique positive pairs."
+            )
 
     # Generate negative pairs
     while len(pairs) < n_pairs:
-        cat1, cat2 = rng.choice(categories, size=2, replace=False)
+        cat1, cat2 = rng.choice(
+            categories,
+            size=2,
+            replace=False
+        )
+
         indx1 = rng.choice(category_indices[cat1])
         indx2 = rng.choice(category_indices[cat2])
+
         pair = tuple(sorted((int(indx1), int(indx2))))
+
         if pair not in seen_pairs:
             seen_pairs.add(pair)
             pairs.append(pair)
             labels_list.append(0)
-        attempts += 1
-        if attempts >= max_attempts:
-            raise RuntimeError("Could not generate enough unique negative pairs.")
 
-    # Shuffle and return 
+        attempts += 1
+
+        if attempts >= max_attempts:
+            raise RuntimeError(
+                "Could not generate enough unique negative pairs."
+            )
+
+    # Shuffle and return
     permutation = rng.permutation(len(pairs))
     pairs = np.array(pairs)[permutation]
     labels_list = np.array(labels_list)[permutation]
+
     return pairs, labels_list
 
 
@@ -157,17 +175,21 @@ val_labels = train_data.target[val_document_indices]
 
 train_pairs, y_train_pairs = generate_pairs(
     train_labels,
-    n_pairs=5000,
+    n_pairs=20000,
     seed=42,
     valid_indices=train_valid_idx,
 )
 
-# Each row = [words of document A | words of document B]
+# Each row initially contains [words of document A | words of document B]
 def pair_to_vectors(pair, X):
-    return sp.hstack([X[pair[0]], X[pair[1]]], format="csr")
+    return sp.hstack(
+        [X[pair[0]], X[pair[1]]],
+        format="csr"
+    )
 
-# Convert each generated pair into a feature vector
-X_train_pairs = sp.vstack([
+
+# Convert each generated pair into an initial [Document A | Document B] feature vector
+X_train_pairs_raw = sp.vstack([
     pair_to_vectors(pair, X_train_docs)
     for pair in train_pairs
 ])
@@ -179,7 +201,7 @@ val_pairs, y_val_pairs = generate_pairs(
     valid_indices=val_valid_idx,
 )
 
-X_val_pairs = sp.vstack([
+X_val_pairs_raw = sp.vstack([
     pair_to_vectors(pair, X_val_docs)
     for pair in val_pairs
 ])
@@ -192,61 +214,172 @@ test_pairs, test_pair_labels = generate_pairs(
     valid_indices=test_valid_idx
 )
 
-X_test_pairs = sp.vstack([
+X_test_pairs_raw = sp.vstack([
     pair_to_vectors(pair, X_test_docs)
     for pair in test_pairs
-    ])
+])
+
+
+# Convert [Document A | Document B] into relational features:
+# [shared words | different words]
+def to_relational_features(X_pairs):
+    words_per_document = X_pairs.shape[1] // 2
+
+    A = X_pairs[:, :words_per_document].tocsr()
+    B = X_pairs[:, words_per_document:].tocsr()
+
+    # Words appearing in both documents
+    shared = A.multiply(B)
+
+    # XOR: words appearing in exactly one document
+    different = A + B - (2 * shared)
+    different.eliminate_zeros()
+
+    return sp.hstack(
+        [shared, different],
+        format="csr"
+    )
+
+
+# Use the relational representation as the final feature matrices
+# supplied to both the Vanilla and Hierarchical Tsetlin Machines.
+X_train_pairs = to_relational_features(X_train_pairs_raw)
+X_val_pairs = to_relational_features(X_val_pairs_raw)
+X_test_pairs = to_relational_features(X_test_pairs_raw)
+
 
 # Convert pair-local document indices back to indices in the original datasets
 # This lets us verify that every document used by the pairs belongs to one split only
 train_pair_documents = set(
-    train_document_indices[np.asarray(train_pairs, dtype=int).ravel()]
+    train_document_indices[
+        np.asarray(train_pairs, dtype=int).ravel()
+    ]
 )
+
 val_pair_documents = set(
-    val_document_indices[np.asarray(val_pairs, dtype=int).ravel()]
+    val_document_indices[
+        np.asarray(val_pairs, dtype=int).ravel()
+    ]
 )
-test_pair_documents = set(np.asarray(test_pairs, dtype=int).ravel())
+
+test_pair_documents = set(
+    np.asarray(test_pairs, dtype=int).ravel()
+)
 
 assert train_pair_documents.isdisjoint(val_pair_documents)
 
-print("Training documents used in pairs:", len(train_pair_documents))
-print("Validation documents used in pairs:", len(val_pair_documents))
-print("Test documents used in pairs:", len(test_pair_documents))
+print(
+    "Training documents used in pairs:",
+    len(train_pair_documents)
+)
+
+print(
+    "Validation documents used in pairs:",
+    len(val_pair_documents)
+)
+
+print(
+    "Test documents used in pairs:",
+    len(test_pair_documents)
+)
 
 
 # Check that labels and feature matrix align
-print("Training pair feature matrix:", X_train_pairs.shape)
-print("Training pair label shape:", y_train_pairs.shape)
-print("Validation pair feature matrix:", X_val_pairs.shape)
-print("Validation pair label shape:", y_val_pairs.shape)
-print("Test pair feature matrix:", X_test_pairs.shape)
-print("Test pair label shape:", test_pair_labels.shape)
+print(
+    "Training pair feature matrix:",
+    X_train_pairs.shape
+)
 
-print("Training pair balance [negative, positive]:", np.bincount(y_train_pairs))
-print("Validation pair balance [negative, positive]:", np.bincount(y_val_pairs))
-print("Test pair balance [negative, positive]:", np.bincount(test_pair_labels))
-print("Number of unique test pairs:", len(set(map(tuple, test_pairs))))
-print("Total number of generated test pairs:", len(test_pairs))
+print(
+    "Training pair label shape:",
+    y_train_pairs.shape
+)
+
+print(
+    "Validation pair feature matrix:",
+    X_val_pairs.shape
+)
+
+print(
+    "Validation pair label shape:",
+    y_val_pairs.shape
+)
+
+print(
+    "Test pair feature matrix:",
+    X_test_pairs.shape
+)
+
+print(
+    "Test pair label shape:",
+    test_pair_labels.shape
+)
+
+print(
+    "Training pair balance [negative, positive]:",
+    np.bincount(y_train_pairs)
+)
+
+print(
+    "Validation pair balance [negative, positive]:",
+    np.bincount(y_val_pairs)
+)
+
+print(
+    "Test pair balance [negative, positive]:",
+    np.bincount(test_pair_labels)
+)
+
+print(
+    "Number of unique test pairs:",
+    len(set(map(tuple, test_pairs)))
+)
+
+print(
+    "Total number of generated test pairs:",
+    len(test_pairs)
+)
+
+print(
+    "Final pair representation: [shared words | different words]"
+)
 
 
 '''
-Preprocessing stegene som er blitt gjort:
+Preprocessing:
 - Lowercasing text
-- Removing URLs, punctuation, and extra whitespace, headers, footers, and quotes
+- Removing URLs, punctuation, and extra whitespace
 - Removing non-alphanumeric characters
+- Keeping the original headers, footers, and quoted text
 - Converting text into binary features using CountVectorizer
+- Using a 1000-word vocabulary
+- Removing English stop words
+- Using min_df=5
+- Fitting the vocabulary only on the training split
 - Filtering documents with no vocabulary words
-- Concentrating each pair's two document vectors into one 2k-feature vector
-- Building a 1k-wordk training vocabulary (CountVectorizer)
+- Generating balanced positive and negative document pairs
 '''
 
 '''
-Feature representation:
-- Each document is represented as a binary vector of length 1000
-- A document pair is represented as a concatenation of two document vectors,
-resulting in a feature vector of length 2000
-- Vocab is fitted only on the training data to avoid data leakage,
-and the same training vocab and feature positions are then used to
-transform the test documents
+Base feature representation:
+- Each document is represented by a binary vector of length 1000
+- A document pair is initially represented as:
+  [Document A | Document B]
+- This gives 2000 binary features
 
+The initial pair representation is then transformed into:
+[shared words | different words]
+
+where:
+- shared = Document A AND Document B
+- different = Document A XOR Document B
+
+The relational representation is exported as:
+- X_train_pairs
+- X_val_pairs
+- X_test_pairs
+
+This means both the Vanilla Tsetlin Machine and the
+Hierarchical Tsetlin Machine receive the same relational
+feature representation.
 '''
