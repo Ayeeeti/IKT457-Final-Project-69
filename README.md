@@ -20,3 +20,14 @@ python -m pip install -r requirements-cuda.txt
 
 The CUDA backend also requires a working NVIDIA CUDA/PyCUDA setup. The regular
 `requirements.txt` remains suitable for using the non-CUDA scripts.
+
+On Windows, CUDA compilation also requires the Visual Studio C++ Build Tools
+environment. Run the vanilla CUDA script through the provided launcher so that
+environment is initialized:
+
+```powershell
+.\run_vanilla_TM_cuda.bat --epochs 1
+```
+
+The launcher uses the Python 3.14 environment. Omit `--epochs 1` to use the
+script's default number of epochs.

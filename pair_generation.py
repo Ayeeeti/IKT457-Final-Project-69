@@ -22,7 +22,7 @@ def non_empty_docs(x):
 # Convert text into binary features
 vectorizer = CountVectorizer(
     binary=True,            # 1 if a word is present, 0 otherwise
-    max_features=1000,      # Keep at most 1 000 vocabulary words
+    max_features=3000,      # Keep at most 3 000 vocabulary words
     stop_words="english",   # Remove common english words
     min_df=5                # Ignore words appearing fewer than 5 training documents
     )
@@ -72,7 +72,7 @@ print("Test binary document matrix:", X_test_docs.shape)
 # A positive pair consists of two documents from the same category, 
 # while a negative pair consists of two documents from different categories
 
-def generate_pairs(labels, n_pairs=5000, seed=42, valid_indices=None):
+def generate_pairs(labels, n_pairs=20000, seed=42, valid_indices=None):
     rng = np.random.default_rng(seed)
     labels = np.asarray(labels)
 
