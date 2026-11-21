@@ -1,3 +1,5 @@
 scikit-learn
 numpy
 scipy
+-r requirements.txt
+PyHierarchicalTsetlinMachineCUDA>=0.3.3
